@@ -17,10 +17,22 @@ fs.ensureDirSync("data");
 
 const DB_FILE = "data/db.json";
 
-/* ---------- DB ---------- */
+function defaultDB() {
+  return {
+    folders: [
+      {
+        name: "Default",
+        videos: []
+      }
+    ]
+  };
+}
+
 function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
-    return { folders: [{ name: "Default", videos: [] }] };
+    const db = defaultDB();
+    fs.writeJsonSync(DB_FILE, db);
+    return db;
   }
   return fs.readJsonSync(DB_FILE);
 }
@@ -29,9 +41,19 @@ function saveDB(db) {
   fs.writeJsonSync(DB_FILE, db);
 }
 
-/* ---------- UPLOAD ---------- */
+function getFolder(db, index) {
+  if (!db.folders[index]) return db.folders[0];
+  return db.folders[index];
+}
+
+function safeIndex(i) {
+  return isNaN(i) ? 0 : Number(i);
+}
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads"),
+  destination: (req, file, cb) => {
+    cb(null, "uploads");
+  },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
   }
@@ -39,19 +61,29 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-/* ---------- API ---------- */
-
-// get db
 app.get("/api/db", (req, res) => {
-  res.json(loadDB());
+  const db = loadDB();
+  res.json(db);
 });
 
-// upload
+app.post("/api/folder", (req, res) => {
+  const db = loadDB();
+  const name = req.body.name || "New Folder";
+
+  db.folders.push({
+    name,
+    videos: []
+  });
+
+  saveDB(db);
+  res.json(db);
+});
+
 app.post("/api/upload", upload.single("video"), (req, res) => {
   const db = loadDB();
 
-  const folderIndex = Number(req.body.folderIndex || 0);
-  const folder = db.folders[folderIndex];
+  const folderIndex = safeIndex(req.body.folderIndex);
+  const folder = getFolder(db, folderIndex);
 
   const number = folder.videos.length + 1;
 
@@ -65,20 +97,23 @@ app.post("/api/upload", upload.single("video"), (req, res) => {
   res.json(db);
 });
 
-// delete
 app.post("/api/delete", (req, res) => {
   const db = loadDB();
 
-  const { folderIndex, videoIndex } = req.body;
+  const folderIndex = safeIndex(req.body.folderIndex);
+  const videoIndex = safeIndex(req.body.videoIndex);
 
-  const video = db.folders[folderIndex]?.videos[videoIndex];
+  const folder = getFolder(db, folderIndex);
+  const video = folder.videos[videoIndex];
 
   if (video) {
     const filePath = path.join(__dirname, video.src);
-    if (fs.existsSync(filePath)) fs.removeSync(filePath);
+    if (fs.existsSync(filePath)) {
+      fs.removeSync(filePath);
+    }
   }
 
-  db.folders[folderIndex].videos.splice(videoIndex, 1);
+  folder.videos.splice(videoIndex, 1);
 
   saveDB(db);
   res.json(db);
