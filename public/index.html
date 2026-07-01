@@ -82,7 +82,7 @@ video {
 }
 
 .list {
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
 }
 
@@ -92,22 +92,13 @@ video {
   margin-bottom: 6px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
   display: flex;
   justify-content: space-between;
 }
 
-.active { border: 1px solid #ff2d55; }
-
-.smallbtn {
-  font-size: 10px;
-  color: #1da1f2;
-  cursor: pointer;
-}
-
 .delete {
   color: red;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 </style>
@@ -128,7 +119,7 @@ video {
 </header>
 
 <div class="video-container">
-  <video id="videoPlayer" controls></video>
+  <video id="videoPlayer" playsinline></video>
 </div>
 
 </div>
@@ -138,38 +129,64 @@ video {
 <script>
 let db = null;
 let activeFolder = 0;
-let currentVideo = null;
+let currentIndex = 0;
 
-const videoPlayer = document.getElementById("videoPlayer");
+const video = document.getElementById("videoPlayer");
 const modal = document.getElementById("modal");
 const fileInput = document.getElementById("fileInput");
 
 /* ---------- LOAD ---------- */
 async function loadDB() {
   db = await fetch("/api/db").then(r => r.json());
-  renderLibrary();
+  render();
 }
+
+/* ---------- PLAY ---------- */
+function play(i) {
+  const vids = db.folders[activeFolder].videos;
+  if (!vids.length) return;
+
+  currentIndex = i;
+
+  video.src = vids[i].src;
+  video.play();
+
+  preload(i + 1);
+}
+
+/* ---------- RANDOM (RESTORED) ---------- */
+function randomVideo() {
+  const vids = db.folders[activeFolder].videos;
+  if (!vids.length) return;
+
+  const i = Math.floor(Math.random() * vids.length);
+  play(i);
+}
+
+/* ---------- PRELOAD NEXT ---------- */
+function preload(i) {
+  const vids = db.folders[activeFolder].videos;
+  if (!vids.length) return;
+
+  const next = i % vids.length;
+
+  const temp = document.createElement("video");
+  temp.src = vids[next].src;
+  temp.preload = "auto";
+}
+
+/* ---------- LOOP ---------- */
+video.addEventListener("ended", () => {
+  const vids = db.folders[activeFolder].videos;
+  if (!vids.length) return;
+
+  play((currentIndex + 1) % vids.length);
+});
 
 /* ---------- UI ---------- */
 function toggleLibrary() {
   modal.style.display = modal.style.display === "block" ? "none" : "block";
-  renderLibrary();
-}
-
-function getFolder() {
-  return db.folders[activeFolder];
-}
-
-function playVideo(v) {
-  currentVideo = v;
-  videoPlayer.src = v.src;
-  videoPlayer.play();
-}
-
-function randomVideo() {
-  const vids = getFolder().videos;
-  if (!vids.length) return;
-  playVideo(vids[Math.floor(Math.random() * vids.length)]);
+  render();
 }
 
 /* ---------- UPLOAD ---------- */
@@ -194,7 +211,7 @@ fileInput.onchange = async (e) => {
 };
 
 /* ---------- DELETE ---------- */
-async function deleteVideo(i) {
+async function del(i) {
   await fetch("/api/delete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -207,53 +224,22 @@ async function deleteVideo(i) {
   loadDB();
 }
 
-/* ---------- FOLDERS ---------- */
-async function createFolder() {
-  const name = prompt("Folder name?");
-  if (!name) return;
-
-  await fetch("/api/folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name })
-  });
-
-  loadDB();
-}
-
-function switchFolder(i) {
-  activeFolder = i;
-  renderLibrary();
-}
-
 /* ---------- RENDER ---------- */
-function renderLibrary() {
+function render() {
   if (!db) return;
 
   const folder = db.folders[activeFolder];
 
   modal.innerHTML = `
-    <h4>Folders</h4>
-    <div class="list">
-      ${db.folders.map((f,i)=>`
-        <div class="item ${i===activeFolder?"active":""}" onclick="switchFolder(${i})">
-          ${f.name}
-        </div>
-      `).join("")}
-    </div>
+    <h3>Videos</h3>
 
-    <button onclick="createFolder()">+ Folder</button>
-
-    <h4>Videos</h4>
     <div class="list">
       ${
         folder.videos.length
         ? folder.videos.map((v,i)=>`
-          <div class="item">
-            <div onclick="playVideo(db.folders[activeFolder].videos[${i}])">
-              ${v.name}
-            </div>
-            <span class="delete" onclick="event.stopPropagation(); deleteVideo(${i})">delete</span>
+          <div class="item" onclick="play(${i})">
+            <div>${v.number}. ${v.name}</div>
+            <div class="delete" onclick="event.stopPropagation(); del(${i})">X</div>
           </div>
         `).join("")
         : "<div class='item'>No videos</div>"
