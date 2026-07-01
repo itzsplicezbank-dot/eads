@@ -37,9 +37,14 @@ header {
   border-bottom: 1px solid #222;
 }
 
-.title { font-weight: bold; }
+.title {
+  font-weight: bold;
+}
 
-.btns { display: flex; gap: 6px; }
+.btns {
+  display: flex;
+  gap: 6px;
+}
 
 button {
   background: #ff2d55;
@@ -56,6 +61,7 @@ button {
   display: flex;
   justify-content: center;
   align-items: center;
+  background: black;
 }
 
 video {
@@ -63,6 +69,19 @@ video {
   height: 100%;
   object-fit: contain;
   background: black;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: white;
+  z-index: 999;
+  cursor: pointer;
 }
 
 #modal {
@@ -82,7 +101,7 @@ video {
 }
 
 .list {
-  max-height: 250px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -92,19 +111,37 @@ video {
   margin-bottom: 6px;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 12px;
   display: flex;
   justify-content: space-between;
 }
 
+.item:hover {
+  background: #333;
+}
+
+.active {
+  border: 1px solid #ff2d55;
+}
+
+.smallbtn {
+  font-size: 10px;
+  color: #1da1f2;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
 .delete {
   color: red;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
 }
 </style>
 </head>
 
 <body>
+
+<div id="overlay">Tap to Enter</div>
 
 <div class="app">
 
@@ -135,15 +172,17 @@ const video = document.getElementById("videoPlayer");
 const modal = document.getElementById("modal");
 const fileInput = document.getElementById("fileInput");
 
-/* ---------- LOAD ---------- */
 async function loadDB() {
   db = await fetch("/api/db").then(r => r.json());
   render();
 }
 
-/* ---------- PLAY ---------- */
+function getFolder() {
+  return db.folders[activeFolder];
+}
+
 function play(i) {
-  const vids = db.folders[activeFolder].videos;
+  const vids = getFolder().videos;
   if (!vids.length) return;
 
   currentIndex = i;
@@ -154,18 +193,16 @@ function play(i) {
   preload(i + 1);
 }
 
-/* ---------- RANDOM (RESTORED) ---------- */
 function randomVideo() {
-  const vids = db.folders[activeFolder].videos;
+  const vids = getFolder().videos;
   if (!vids.length) return;
 
   const i = Math.floor(Math.random() * vids.length);
   play(i);
 }
 
-/* ---------- PRELOAD NEXT ---------- */
 function preload(i) {
-  const vids = db.folders[activeFolder].videos;
+  const vids = getFolder().videos;
   if (!vids.length) return;
 
   const next = i % vids.length;
@@ -175,21 +212,18 @@ function preload(i) {
   temp.preload = "auto";
 }
 
-/* ---------- LOOP ---------- */
 video.addEventListener("ended", () => {
-  const vids = db.folders[activeFolder].videos;
+  const vids = getFolder().videos;
   if (!vids.length) return;
 
   play((currentIndex + 1) % vids.length);
 });
 
-/* ---------- UI ---------- */
 function toggleLibrary() {
   modal.style.display = modal.style.display === "block" ? "none" : "block";
   render();
 }
 
-/* ---------- UPLOAD ---------- */
 function uploadVideo() {
   fileInput.click();
 }
@@ -210,7 +244,6 @@ fileInput.onchange = async (e) => {
   loadDB();
 };
 
-/* ---------- DELETE ---------- */
 async function del(i) {
   await fetch("/api/delete", {
     method: "POST",
@@ -224,15 +257,13 @@ async function del(i) {
   loadDB();
 }
 
-/* ---------- RENDER ---------- */
 function render() {
   if (!db) return;
 
-  const folder = db.folders[activeFolder];
+  const folder = getFolder();
 
   modal.innerHTML = `
     <h3>Videos</h3>
-
     <div class="list">
       ${
         folder.videos.length
@@ -247,6 +278,10 @@ function render() {
     </div>
   `;
 }
+
+document.getElementById("overlay").onclick = () => {
+  document.getElementById("overlay").style.display = "none";
+};
 
 loadDB();
 </script>
