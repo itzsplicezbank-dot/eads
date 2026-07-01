@@ -1,20 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Mini Insta App</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mini Insta</title>
 
 <style>
-body { margin:0; background:black; font-family:Arial; overflow:hidden; }
-.app { height:100vh; display:flex; flex-direction:column; }
-header { height:50px; display:flex; justify-content:space-between; align-items:center; color:white; padding:0 10px; }
-button { background:#ff2d55; border:0; color:white; padding:6px; font-size:11px; }
-video { width:100%; height:100%; object-fit:contain; }
-.container { flex:1; display:flex; align-items:center; justify-content:center; }
-#modal { position:fixed; right:10px; top:60px; background:#111; color:white; width:260px; display:none; padding:10px; }
-.item { padding:6px; background:#222; margin:5px 0; cursor:pointer; }
-.active { border:1px solid #ff2d55; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  font-family: Arial, sans-serif;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app {
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: black;
+  overflow: hidden;
+}
+
+header {
+  height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  background: rgba(0,0,0,0.95);
+  color: white;
+  border-bottom: 1px solid #222;
+}
+
+.title { font-weight: bold; }
+
+.btns { display: flex; gap: 6px; }
+
+button {
+  background: #ff2d55;
+  border: none;
+  color: white;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.video-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: black;
+}
+
+#modal {
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  width: 280px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 10px;
+  display: none;
+  z-index: 20;
+  color: white;
+  max-height: 350px;
+  overflow: hidden;
+}
+
+.list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.item {
+  padding: 8px;
+  background: #222;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.active { border: 1px solid #ff2d55; }
+
+.smallbtn {
+  font-size: 10px;
+  color: #1da1f2;
+  cursor: pointer;
+}
+
+.delete {
+  color: red;
+  font-size: 10px;
+  cursor: pointer;
+}
 </style>
 </head>
 
@@ -23,82 +118,149 @@ video { width:100%; height:100%; object-fit:contain; }
 <div class="app">
 
 <header>
-  <div>Mini Insta</div>
-  <div>
-    <button onclick="toggle()">Library</button>
-    <button onclick="createFolder()">Folder</button>
-    <button onclick="upload()">Upload</button>
+  <div class="title">Mini Insta</div>
+  <div class="btns">
+    <button onclick="toggleLibrary()">Library</button>
+    <button onclick="randomVideo()">Random</button>
+    <button onclick="uploadVideo()">Upload</button>
+    <input type="file" id="fileInput" accept="video/*" hidden />
   </div>
 </header>
 
-<div class="container">
-  <video id="player" controls></video>
+<div class="video-container">
+  <video id="videoPlayer" controls></video>
 </div>
 
 </div>
 
 <div id="modal"></div>
 
-<input type="file" id="file" hidden />
-
 <script>
-let db = { folders:[{name:"Default",videos:[]}] };
-let active = 0;
+let db = null;
+let activeFolder = 0;
+let currentVideo = null;
 
+const videoPlayer = document.getElementById("videoPlayer");
 const modal = document.getElementById("modal");
-const file = document.getElementById("file");
-const player = document.getElementById("player");
+const fileInput = document.getElementById("fileInput");
 
-async function loadDB(){
-  db = await fetch("/api/db").then(r=>r.json());
-  render();
+/* ---------- LOAD ---------- */
+async function loadDB() {
+  db = await fetch("/api/db").then(r => r.json());
+  renderLibrary();
 }
 
-function toggle(){
-  modal.style.display = modal.style.display==="block"?"none":"block";
-  render();
+/* ---------- UI ---------- */
+function toggleLibrary() {
+  modal.style.display = modal.style.display === "block" ? "none" : "block";
+  renderLibrary();
 }
 
-function render(){
-  modal.innerHTML = "";
-
-  db.folders.forEach((f,i)=>{
-    const div = document.createElement("div");
-    div.className = "item"+(i===active?" active":"");
-    div.innerText = f.name;
-    div.onclick = ()=>{active=i; render();};
-    modal.appendChild(div);
-  });
-
-  const vids = db.folders[active].videos;
-
-  vids.forEach((v,i)=>{
-    const div = document.createElement("div");
-    div.className="item";
-    div.innerText=v.name;
-    div.onclick=()=>player.src=v.src;
-    modal.appendChild(div);
-  });
+function getFolder() {
+  return db.folders[activeFolder];
 }
 
-function createFolder(){
-  const name = prompt("Folder name?");
-  fetch("/api/folder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})
-  .then(loadDB);
+function playVideo(v) {
+  currentVideo = v;
+  videoPlayer.src = v.src;
+  videoPlayer.play();
 }
 
-function upload(){
-  file.click();
+function randomVideo() {
+  const vids = getFolder().videos;
+  if (!vids.length) return;
+  playVideo(vids[Math.floor(Math.random() * vids.length)]);
 }
 
-file.onchange = async (e)=>{
+/* ---------- UPLOAD ---------- */
+function uploadVideo() {
+  fileInput.click();
+}
+
+fileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
   const form = new FormData();
-  form.append("video", e.target.files[0]);
-  form.append("folderIndex", active);
+  form.append("video", file);
+  form.append("folderIndex", activeFolder);
 
-  await fetch("/api/upload",{method:"POST",body:form});
+  await fetch("/api/upload", {
+    method: "POST",
+    body: form
+  });
+
   loadDB();
 };
+
+/* ---------- DELETE ---------- */
+async function deleteVideo(i) {
+  await fetch("/api/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      folderIndex: activeFolder,
+      videoIndex: i
+    })
+  });
+
+  loadDB();
+}
+
+/* ---------- FOLDERS ---------- */
+async function createFolder() {
+  const name = prompt("Folder name?");
+  if (!name) return;
+
+  await fetch("/api/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+
+  loadDB();
+}
+
+function switchFolder(i) {
+  activeFolder = i;
+  renderLibrary();
+}
+
+/* ---------- RENDER ---------- */
+function renderLibrary() {
+  if (!db) return;
+
+  const folder = db.folders[activeFolder];
+
+  modal.innerHTML = `
+    <h4>Folders</h4>
+    <div class="list">
+      ${db.folders.map((f,i)=>`
+        <div class="item ${i===activeFolder?"active":""}" onclick="switchFolder(${i})">
+          ${f.name}
+        </div>
+      `).join("")}
+    </div>
+
+    <button onclick="createFolder()">+ Folder</button>
+
+    <h4>Videos</h4>
+    <div class="list">
+      ${
+        folder.videos.length
+        ? folder.videos.map((v,i)=>`
+          <div class="item">
+            <div onclick="playVideo(db.folders[activeFolder].videos[${i}])">
+              ${v.name}
+            </div>
+            <span class="delete" onclick="event.stopPropagation(); deleteVideo(${i})">delete</span>
+          </div>
+        `).join("")
+        : "<div class='item'>No videos</div>"
+      }
+    </div>
+  `;
+}
 
 loadDB();
 </script>
