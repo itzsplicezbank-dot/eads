@@ -151,6 +151,7 @@ video {
     <button onclick="toggleLibrary()">Library</button>
     <button onclick="randomVideo()">Random</button>
     <button onclick="uploadVideo()">Upload</button>
+    <button onclick="createFolder()">Folder +</button>
     <input type="file" id="fileInput" accept="video/*" hidden />
   </div>
 </header>
@@ -181,12 +182,19 @@ function getFolder() {
   return db.folders[activeFolder];
 }
 
+function switchFolder(i) {
+  activeFolder = i;
+  currentIndex = 0;
+  video.removeAttribute("src");
+  video.load();
+  render();
+}
+
 function play(i) {
   const vids = getFolder().videos;
   if (!vids.length) return;
 
   currentIndex = i;
-
   video.src = vids[i].src;
   video.play();
 
@@ -215,7 +223,6 @@ function preload(i) {
 video.addEventListener("ended", () => {
   const vids = getFolder().videos;
   if (!vids.length) return;
-
   play((currentIndex + 1) % vids.length);
 });
 
@@ -257,12 +264,53 @@ async function del(i) {
   loadDB();
 }
 
+async function createFolder() {
+  const name = prompt("Folder name?");
+  if (!name) return;
+
+  await fetch("/api/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+
+  loadDB();
+}
+
+async function deleteFolder(i) {
+  if (i === 0) return;
+
+  await fetch("/api/delete-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderIndex: i })
+  });
+
+  if (activeFolder === i) activeFolder = 0;
+
+  loadDB();
+}
+
 function render() {
   if (!db) return;
 
   const folder = getFolder();
 
   modal.innerHTML = `
+    <h3>Folders</h3>
+    <div class="list">
+      ${
+        db.folders.map((f,i)=>`
+          <div class="item ${i===activeFolder?"active":""}">
+            <div onclick="switchFolder(${i})">${f.name}</div>
+            <div>
+              <span class="delete" onclick="event.stopPropagation(); deleteFolder(${i})">X</span>
+            </div>
+          </div>
+        `).join("")
+      }
+    </div>
+
     <h3>Videos</h3>
     <div class="list">
       ${
