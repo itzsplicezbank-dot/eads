@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mini Insta App</title>
+
+<style>
+body { margin:0; background:black; font-family:Arial; overflow:hidden; }
+.app { height:100vh; display:flex; flex-direction:column; }
+header { height:50px; display:flex; justify-content:space-between; align-items:center; color:white; padding:0 10px; }
+button { background:#ff2d55; border:0; color:white; padding:6px; font-size:11px; }
+video { width:100%; height:100%; object-fit:contain; }
+.container { flex:1; display:flex; align-items:center; justify-content:center; }
+#modal { position:fixed; right:10px; top:60px; background:#111; color:white; width:260px; display:none; padding:10px; }
+.item { padding:6px; background:#222; margin:5px 0; cursor:pointer; }
+.active { border:1px solid #ff2d55; }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+  <div>Mini Insta</div>
+  <div>
+    <button onclick="toggle()">Library</button>
+    <button onclick="createFolder()">Folder</button>
+    <button onclick="upload()">Upload</button>
+  </div>
+</header>
+
+<div class="container">
+  <video id="player" controls></video>
+</div>
+
+</div>
+
+<div id="modal"></div>
+
+<input type="file" id="file" hidden />
+
+<script>
+let db = { folders:[{name:"Default",videos:[]}] };
+let active = 0;
+
+const modal = document.getElementById("modal");
+const file = document.getElementById("file");
+const player = document.getElementById("player");
+
+async function loadDB(){
+  db = await fetch("/api/db").then(r=>r.json());
+  render();
+}
+
+function toggle(){
+  modal.style.display = modal.style.display==="block"?"none":"block";
+  render();
+}
+
+function render(){
+  modal.innerHTML = "";
+
+  db.folders.forEach((f,i)=>{
+    const div = document.createElement("div");
+    div.className = "item"+(i===active?" active":"");
+    div.innerText = f.name;
+    div.onclick = ()=>{active=i; render();};
+    modal.appendChild(div);
+  });
+
+  const vids = db.folders[active].videos;
+
+  vids.forEach((v,i)=>{
+    const div = document.createElement("div");
+    div.className="item";
+    div.innerText=v.name;
+    div.onclick=()=>player.src=v.src;
+    modal.appendChild(div);
+  });
+}
+
+function createFolder(){
+  const name = prompt("Folder name?");
+  fetch("/api/folder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})
+  .then(loadDB);
+}
+
+function upload(){
+  file.click();
+}
+
+file.onchange = async (e)=>{
+  const form = new FormData();
+  form.append("video", e.target.files[0]);
+  form.append("folderIndex", active);
+
+  await fetch("/api/upload",{method:"POST",body:form});
+  loadDB();
+};
+
+loadDB();
+</script>
+
+</body>
+</html>
