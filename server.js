@@ -30,7 +30,7 @@ function saveDB(db) {
 
 let db = loadDB();
 
-/* ---------- FILE UPLOAD ---------- */
+/* ---------- UPLOAD ---------- */
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads"),
   filename: (req, file, cb) => {
@@ -42,50 +42,48 @@ const upload = multer({ storage });
 
 /* ---------- API ---------- */
 
-// get app data
 app.get("/api/db", (req, res) => {
   res.json(loadDB());
 });
 
-// create folder
+/* create folder */
 app.post("/api/folder", (req, res) => {
-  const { name } = req.body;
-
   db = loadDB();
-  db.folders.push({ name, videos: [] });
-
+  db.folders.push({ name: req.body.name, videos: [] });
   saveDB(db);
   res.json(db);
 });
 
-// upload video
+/* upload video */
 app.post("/api/upload", upload.single("video"), (req, res) => {
-  const { folderIndex } = req.body;
-
   db = loadDB();
 
-  const filePath = "/uploads/" + req.file.filename;
+  const folderIndex = Number(req.body.folderIndex);
+  const folder = db.folders[folderIndex];
 
-  db.folders[folderIndex].videos.push({
-    name: req.file.originalname,
-    src: filePath
+  const videoNumber = folder.videos.length + 1;
+
+  folder.videos.push({
+    name: `Video ${videoNumber}`,
+    number: videoNumber,
+    src: "/uploads/" + req.file.filename
   });
 
   saveDB(db);
   res.json(db);
 });
 
-// delete video
+/* delete */
 app.post("/api/delete", (req, res) => {
-  const { folderIndex, videoIndex } = req.body;
-
   db = loadDB();
+
+  const { folderIndex, videoIndex } = req.body;
 
   const video = db.folders[folderIndex].videos[videoIndex];
 
   if (video) {
-    const fullPath = path.join(__dirname, video.src);
-    if (fs.existsSync(fullPath)) fs.removeSync(fullPath);
+    const filePath = path.join(__dirname, video.src);
+    if (fs.existsSync(filePath)) fs.removeSync(filePath);
   }
 
   db.folders[folderIndex].videos.splice(videoIndex, 1);
