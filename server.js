@@ -17,9 +17,10 @@ fs.ensureDirSync("data");
 
 const DB_FILE = "data/db.json";
 
+/* ---------- DB ---------- */
 function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
-    return { folders: [{ name: "Default", videos: [] }], activeFolder: 0 };
+    return { folders: [{ name: "Default", videos: [] }] };
   }
   return fs.readJsonSync(DB_FILE);
 }
@@ -27,8 +28,6 @@ function loadDB() {
 function saveDB(db) {
   fs.writeJsonSync(DB_FILE, db);
 }
-
-let db = loadDB();
 
 /* ---------- UPLOAD ---------- */
 const storage = multer.diskStorage({
@@ -42,30 +41,23 @@ const upload = multer({ storage });
 
 /* ---------- API ---------- */
 
+// get db
 app.get("/api/db", (req, res) => {
   res.json(loadDB());
 });
 
-/* create folder */
-app.post("/api/folder", (req, res) => {
-  db = loadDB();
-  db.folders.push({ name: req.body.name, videos: [] });
-  saveDB(db);
-  res.json(db);
-});
-
-/* upload video */
+// upload
 app.post("/api/upload", upload.single("video"), (req, res) => {
-  db = loadDB();
+  const db = loadDB();
 
-  const folderIndex = Number(req.body.folderIndex);
+  const folderIndex = Number(req.body.folderIndex || 0);
   const folder = db.folders[folderIndex];
 
-  const videoNumber = folder.videos.length + 1;
+  const number = folder.videos.length + 1;
 
   folder.videos.push({
-    name: `Video ${videoNumber}`,
-    number: videoNumber,
+    name: `Video ${number}`,
+    number,
     src: "/uploads/" + req.file.filename
   });
 
@@ -73,13 +65,13 @@ app.post("/api/upload", upload.single("video"), (req, res) => {
   res.json(db);
 });
 
-/* delete */
+// delete
 app.post("/api/delete", (req, res) => {
-  db = loadDB();
+  const db = loadDB();
 
   const { folderIndex, videoIndex } = req.body;
 
-  const video = db.folders[folderIndex].videos[videoIndex];
+  const video = db.folders[folderIndex]?.videos[videoIndex];
 
   if (video) {
     const filePath = path.join(__dirname, video.src);
