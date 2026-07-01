@@ -42,6 +42,9 @@ function saveDB(db) {
 }
 
 function getFolder(db, index) {
+  if (!db.folders || db.folders.length === 0) {
+    db.folders = defaultDB().folders;
+  }
   if (!db.folders[index]) return db.folders[0];
   return db.folders[index];
 }
@@ -68,12 +71,44 @@ app.get("/api/db", (req, res) => {
 
 app.post("/api/folder", (req, res) => {
   const db = loadDB();
-  const name = req.body.name || "New Folder";
+
+  let name = (req.body.name || "New Folder").trim();
+  if (!name) name = "New Folder";
+
+  const exists = db.folders.some(f => f.name === name);
+  if (exists) {
+    name = name + " " + (db.folders.length + 1);
+  }
 
   db.folders.push({
     name,
     videos: []
   });
+
+  saveDB(db);
+  res.json(db);
+});
+
+app.post("/api/delete-folder", (req, res) => {
+  const db = loadDB();
+
+  const index = safeIndex(req.body.folderIndex);
+
+  if (index === 0) {
+    return res.json(db);
+  }
+
+  const folder = db.folders[index];
+  if (!folder) return res.json(db);
+
+  folder.videos.forEach(v => {
+    const filePath = path.join(__dirname, v.src);
+    if (fs.existsSync(filePath)) {
+      fs.removeSync(filePath);
+    }
+  });
+
+  db.folders.splice(index, 1);
 
   saveDB(db);
   res.json(db);
